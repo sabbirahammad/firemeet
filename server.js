@@ -14,6 +14,21 @@ const server = http.createServer(app);
 
 initSocket(server);
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception crashed the process.');
+  console.error(error instanceof Error ? error.stack || error.message : error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection detected.');
+  console.error(reason instanceof Error ? reason.stack || reason.message : reason);
+});
+
+server.on('error', (error) => {
+  console.error('HTTP server error.');
+  console.error(error instanceof Error ? error.stack || error.message : error);
+});
+
 async function startServer() {
   ensureDb();
 
