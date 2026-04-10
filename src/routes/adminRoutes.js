@@ -503,8 +503,7 @@ router.post('/login', async (req, res) => {
 
     const envAdmin = getEnvAdminCredentials();
     if (email === envAdmin.email && password === envAdmin.password) {
-      const session = createSession(db, ENV_ADMIN_USER_ID);
-      writeDb(db);
+      const session = createSession(null, ENV_ADMIN_USER_ID);
       return res.json({
         token: session.token,
         admin: sanitizeAdminSession({
@@ -544,8 +543,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid admin credentials.' });
     }
 
-    const session = createSession(db, user.id);
-    writeDb(db);
+    const session = createSession(null, user.id);
     return res.json({
       token: session.token,
       admin: sanitizeAdminSession({
@@ -569,8 +567,10 @@ router.post('/logout', requireAdmin, (req, res) => {
     const header = String(req.headers.authorization || '');
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     const db = req.adminDb || readDb();
-    removeSessionByToken(db, token);
-    writeDb(db);
+    const removed = removeSessionByToken(db, token);
+    if (removed && !token.startsWith('fm.')) {
+      writeDb(db);
+    }
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ message: error.message || 'Could not log out admin session.' });

@@ -16,17 +16,6 @@ const {
 
 const router = express.Router();
 
-function persistDbInBackground(db, label = 'auth') {
-  setImmediate(() => {
-    try {
-      writeDb(db);
-    } catch (error) {
-      console.error(`${label} background persistence failed.`);
-      console.error(error instanceof Error ? error.message : error);
-    }
-  });
-}
-
 router.get('/session', (req, res) => {
   try {
     const db = readDb();
@@ -75,7 +64,7 @@ router.post('/login', async (req, res) => {
 
     markDailyLogin(user);
     const missionResult = syncMissionSections(db, user.id, { skipConversationScan: true });
-    const session = createSession(db, user.id);
+    const session = createSession(null, user.id);
     const responsePayload = {
       message: 'Login successful.',
       token: session.token,
@@ -84,9 +73,7 @@ router.post('/login', async (req, res) => {
     };
 
     console.log(`Login prepared for ${email} in ${Date.now() - loginStartedAt}ms`);
-    res.json(responsePayload);
-    persistDbInBackground(db, 'login');
-    return;
+    return res.json(responsePayload);
   } catch (error) {
     return sendServerError(res, error, 'Login failed.');
   }
@@ -100,8 +87,10 @@ router.post('/logout', (req, res) => {
       return res.status(401).json({ message: 'Session not found.' });
     }
 
-    removeSessionByToken(db, session.token);
-    writeDb(db);
+    const removed = removeSessionByToken(db, session.token);
+    if (removed && !String(session.token || '').startsWith('fm.')) {
+      writeDb(db);
+    }
     return res.json({ message: 'Logout successful.' });
   } catch (error) {
     return sendServerError(res, error, 'Logout failed.');
