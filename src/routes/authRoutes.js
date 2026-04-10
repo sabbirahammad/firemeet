@@ -18,7 +18,7 @@ const router = express.Router();
 
 router.get('/session', (req, res) => {
   try {
-    const db = readDb();
+    const db = readDb({ persistHydration: false });
     const session = getSessionFromRequest(db, req);
     if (!session?.userId) {
       return res.status(401).json({ message: 'Session not found.' });
@@ -49,21 +49,27 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Valid email and password are required.' });
     }
 
-    const db = readDb();
+    const dbReadStartedAt = Date.now();
+    const db = readDb({ persistHydration: false });
+    console.log(`Login readDb for ${email} in ${Date.now() - dbReadStartedAt}ms`);
     const user = findByField(db.users, 'email', email);
 
     if (!user) {
       return res.status(401).json({ message: 'No account found for this email.' });
     }
 
+    const passwordCheckStartedAt = Date.now();
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+    console.log(`Login password check for ${email} in ${Date.now() - passwordCheckStartedAt}ms`);
 
     if (!passwordMatches) {
       return res.status(401).json({ message: 'Incorrect password.' });
     }
 
+    const missionStartedAt = Date.now();
     markDailyLogin(user);
     const missionResult = syncMissionSections(db, user.id, { skipConversationScan: true });
+    console.log(`Login mission sync for ${email} in ${Date.now() - missionStartedAt}ms`);
     const session = createSession(null, user.id);
     const responsePayload = {
       message: 'Login successful.',
@@ -75,13 +81,15 @@ router.post('/login', async (req, res) => {
     console.log(`Login prepared for ${email} in ${Date.now() - loginStartedAt}ms`);
     return res.json(responsePayload);
   } catch (error) {
+    console.error('Login route failed.');
+    console.error(error instanceof Error ? error.stack || error.message : error);
     return sendServerError(res, error, 'Login failed.');
   }
 });
 
 router.post('/logout', (req, res) => {
   try {
-    const db = readDb();
+    const db = readDb({ persistHydration: false });
     const session = getSessionFromRequest(db, req);
     if (!session?.token) {
       return res.status(401).json({ message: 'Session not found.' });

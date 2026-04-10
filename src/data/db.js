@@ -248,8 +248,9 @@ function writeDb(data) {
   queueMongoPersist(cachedDb);
 }
 
-function readDb() {
+function readDb(options = {}) {
   ensureDb();
+  const persistHydration = options.persistHydration !== false;
 
   const db = cloneDb(cachedDb || readDbFile());
   let changed = false;
@@ -360,7 +361,7 @@ function readDb() {
     };
   });
 
-  if (changed) {
+  if (changed && persistHydration) {
     writeDb(db);
   }
 
