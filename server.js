@@ -17,6 +17,10 @@ initSocket(server);
 async function startServer() {
   ensureDb();
 
+  server.listen(PORT, () => {
+    console.log(`FireMeet backend running on port ${PORT}`);
+  });
+
   try {
     await connectMongo();
   } catch (error) {
@@ -24,11 +28,12 @@ async function startServer() {
     console.error(error instanceof Error ? error.message : error);
   }
 
-  await hydrateDbFromMongo();
-
-  server.listen(PORT, () => {
-    console.log(`MyDating auth server running on http://localhost:${PORT}`);
-  });
+  try {
+    await hydrateDbFromMongo();
+  } catch (error) {
+    console.error('MongoDB hydration failed. Server will continue with current JSON storage.');
+    console.error(error instanceof Error ? error.message : error);
+  }
 }
 
 startServer();
