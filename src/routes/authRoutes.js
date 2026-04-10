@@ -16,6 +16,17 @@ const {
 
 const router = express.Router();
 
+function persistDbInBackground(db, label = 'auth') {
+  setImmediate(() => {
+    try {
+      writeDb(db);
+    } catch (error) {
+      console.error(`${label} background persistence failed.`);
+      console.error(error instanceof Error ? error.message : error);
+    }
+  });
+}
+
 router.get('/session', (req, res) => {
   try {
     const db = readDb();
@@ -29,7 +40,6 @@ router.get('/session', (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    writeDb(db);
     return res.json({
       message: 'Session restored.',
       token: session.token,
@@ -42,6 +52,7 @@ router.get('/session', (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
+    const loginStartedAt = Date.now();
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || '');
 
@@ -65,14 +76,17 @@ router.post('/login', async (req, res) => {
     markDailyLogin(user);
     const missionResult = syncMissionSections(db, user.id, { skipConversationScan: true });
     const session = createSession(db, user.id);
-    writeDb(db);
-
-    return res.json({
+    const responsePayload = {
       message: 'Login successful.',
       token: session.token,
       user: sanitizeUser(missionResult.user || user),
       missionRewards: missionResult.newlyClaimedMissions || [],
-    });
+    };
+
+    console.log(`Login prepared for ${email} in ${Date.now() - loginStartedAt}ms`);
+    res.json(responsePayload);
+    persistDbInBackground(db, 'login');
+    return;
   } catch (error) {
     return sendServerError(res, error, 'Login failed.');
   }
