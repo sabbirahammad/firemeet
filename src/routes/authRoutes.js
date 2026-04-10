@@ -2,12 +2,11 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { OTP_TTL_MS } = require('../config/constants');
-const { readDb, writeDb } = require('../data/db');
+const { readDb, readDbSnapshot, writeDb } = require('../data/db');
 const { sendOtpMail } = require('../services/mailService');
 const { normalizeEmail, isValidEmail, generateOtp, sendServerError, findByField, findById } = require('../utils/common');
-const { buildAppProfileId, sanitizeUser } = require('../utils/profile');
+const { ensureUserProfileData, sanitizeUser } = require('../utils/profile');
 const { createSession, getSessionFromRequest, removeSessionByToken, requireAuthorizedUser } = require('../utils/authSession');
-const { markDailyLogin, syncMissionSections } = require('../utils/missions');
 const {
   registerUserExpoPushToken,
   removeUserExpoPushToken,
@@ -50,9 +49,11 @@ router.post('/login', async (req, res) => {
     }
 
     const dbReadStartedAt = Date.now();
-    const db = readDb({ persistHydration: false });
-    console.log(`Login readDb for ${email} in ${Date.now() - dbReadStartedAt}ms`);
-    const user = findByField(db.users, 'email', email);
+    const snapshot = readDbSnapshot();
+    console.log(`Login snapshot read for ${email} in ${Date.now() - dbReadStartedAt}ms`);
+    const users = Array.isArray(snapshot?.users) ? snapshot.users : [];
+    const userIndex = users.findIndex((item) => normalizeEmail(item?.email) === email);
+    const user = userIndex >= 0 ? users[userIndex] : null;
 
     if (!user) {
       return res.status(401).json({ message: 'No account found for this email.' });
@@ -66,16 +67,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Incorrect password.' });
     }
 
-    const missionStartedAt = Date.now();
-    markDailyLogin(user);
-    const missionResult = syncMissionSections(db, user.id, { skipConversationScan: true });
-    console.log(`Login mission sync for ${email} in ${Date.now() - missionStartedAt}ms`);
     const session = createSession(null, user.id);
+    const safeUser = sanitizeUser(ensureUserProfileData(user, userIndex));
     const responsePayload = {
       message: 'Login successful.',
       token: session.token,
-      user: sanitizeUser(missionResult.user || user),
-      missionRewards: missionResult.newlyClaimedMissions || [],
+      user: safeUser,
+      missionRewards: [],
     };
 
     console.log(`Login prepared for ${email} in ${Date.now() - loginStartedAt}ms`);

@@ -26,6 +26,14 @@ function readDbFile() {
   return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
 
+function readDbSnapshot() {
+  ensureDb();
+  if (!cachedDb) {
+    cachedDb = readDbFile();
+  }
+  return cachedDb;
+}
+
 function queueMongoPersist(data) {
   if (!isMongoReady()) {
     return;
@@ -372,5 +380,6 @@ module.exports = {
   ensureDb,
   hydrateDbFromMongo,
   readDb,
+  readDbSnapshot,
   writeDb,
 };
