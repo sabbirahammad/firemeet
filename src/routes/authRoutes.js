@@ -63,7 +63,7 @@ router.post('/login', async (req, res) => {
     }
 
     markDailyLogin(user);
-    const missionResult = syncMissionSections(db, user.id);
+    const missionResult = syncMissionSections(db, user.id, { skipConversationScan: true });
     const session = createSession(db, user.id);
     writeDb(db);
 

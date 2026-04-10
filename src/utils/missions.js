@@ -313,7 +313,7 @@ function recordDailyGiftSent(user = {}) {
   user.dailyMissionActivity.sentGiftCount = (Number(user.dailyMissionActivity.sentGiftCount) || 0) + 1;
 }
 
-function computeMissionProgress(definition = {}, db = {}, user = {}, userIndex = 0) {
+function computeMissionProgress(definition = {}, db = {}, user = {}, userIndex = 0, options = {}) {
   if (definition.key === 'completeProfile') {
     return buildCompleteProfileProgress(user, userIndex);
   }
@@ -323,6 +323,9 @@ function computeMissionProgress(definition = {}, db = {}, user = {}, userIndex =
   }
 
   if (definition.key === 'startConversations') {
+    if (options.skipConversationScan) {
+      return clampProgress(user.missionsProgress?.missions?.startConversations ?? DEFAULT_PROGRESS.missions.startConversations);
+    }
     return buildStartConversationsProgress(db, user.id);
   }
 
@@ -333,7 +336,7 @@ function computeMissionProgress(definition = {}, db = {}, user = {}, userIndex =
   return 0;
 }
 
-function syncMissionSections(db = {}, userId = '') {
+function syncMissionSections(db = {}, userId = '', options = {}) {
   const normalizedUserId = normalizeText(userId);
   const userIndex = (db.users || []).findIndex((item) => item.id === normalizedUserId);
 
@@ -356,7 +359,7 @@ function syncMissionSections(db = {}, userId = '') {
 
   const missionTasks = MISSION_DEFINITIONS.map((definition) => {
     const alreadyClaimed = Boolean(missionClaims[definition.key]);
-    let progress = alreadyClaimed ? 100 : computeMissionProgress(definition, db, user, userIndex);
+    let progress = alreadyClaimed ? 100 : computeMissionProgress(definition, db, user, userIndex, options);
     let claimedEntry = missionClaims[definition.key] || null;
 
     if (!alreadyClaimed && progress >= 100) {
